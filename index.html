@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>聲音考試網站</title>
+  <title>聲音考試 V8.3</title><!--註解  標題-->
   <style>
     body {
+      background-color: #000;
+      color: #fff;
       font-family: Arial, sans-serif;
       text-align: center;
       padding: 20px;
@@ -20,11 +22,19 @@
     .images img {
       width: 100px;
       cursor: pointer;
+      border: 2px solid #fff;
     }
     .answers button, #nextBtn, #startBtn, select, input[type="text"] {
       margin: 10px;
       padding: 10px 20px;
       font-size: 16px;
+      background-color: #333;
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 4px;
+    }
+    .answers button:hover, #nextBtn:hover, #startBtn:hover {
+      background-color: #555;
     }
     .hidden { display: none; }
     #countdown {
@@ -34,15 +44,17 @@
     #feedback img {
       width: 100px;
       margin-top: 10px;
+      border: 2px solid #fff;
     }
     #leaderboard ol {
       padding-left: 0;
       list-style-position: inside;
     }
+    a { color: #1e90ff; }
   </style>
 </head>
 <body>
-  <h1>聲音考試網站</h1>
+  <h1>聲音考試 V8.3</h1> 
 
   <div>
     暱稱：<input type="text" id="nickname" placeholder="請輸入暱稱" />
@@ -74,6 +86,7 @@
   <div id="result"></div>
   <div id="leaderboard"></div>
 
+  <!-- Firebase & App Script -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
     import {
@@ -81,6 +94,7 @@
       query, orderBy, limit, getDocs
     } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyCBBRiBmHYrUX-6OLGd2N8Ne-eiAXVAq14",
       authDomain: "quizgame-9431f.firebaseapp.com",
@@ -90,33 +104,46 @@
       appId: "1:561058842346:web:b6357588bf3b9e0a7e3993",
       measurementId: "G-4DDZCNQVGM"
     };
-
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // 狀態變數
+    // 題庫與對照表
     const soundList = Array.from({ length: 10 }, (_, i) => String(i + 1).padStart(3, '0'));
+    const nameMap = {
+      '001': '超夢',
+      '002': '夢幻',
+      '003': '蒼響',
+      '004': '藏瑪然特',
+      '005': '班基拉斯',
+      '006': '巨金怪',
+      '007': '密勒頓',
+      '008': '妙蛙花',
+      '009': '噴火龍',
+      '010': '水箭龜'
+    };
+
     let questionsPool = [], score = 0, totalTime = 0;
     let correctAnswer = '', currentQuestion = 1;
     const totalQuestions = 10;
     let startTime, countdownInterval, timeout, timeLimit = 5, randomMode = 'norepeat';
 
-    // 建立 UI
     const imageContainer = document.getElementById('imageContainer');
     const answerButtons = document.getElementById('answerButtons');
+
+    // 建立題目圖片與按鈕
     soundList.forEach(num => {
-      let img = document.createElement('img');
+      const img = document.createElement('img');
       img.src = `${num}.jpg`;
       img.alt = num;
       img.onclick = () => playSound(num);
       imageContainer.appendChild(img);
 
-      let btn = document.createElement('button');
-      btn.textContent = `A${num}`;
+      const btn = document.createElement('button');
+      btn.textContent = nameMap[num] || `A${num}`;
       btn.onclick = () => submitAnswer(num);
       answerButtons.appendChild(btn);
 
-      let audio = document.createElement('audio');
+      const audio = document.createElement('audio');
       audio.id = num;
       audio.src = `${num}.mp3`;
       document.body.appendChild(audio);
@@ -156,12 +183,8 @@
       clearInterval(countdownInterval);
       countdownInterval = setInterval(() => {
         timeLeft -= 0.1;
-        if (timeLeft <= 0) {
-          clearInterval(countdownInterval);
-          submitAnswer(null);
-        } else {
-          document.getElementById('countdown').innerText = `倒數：${timeLeft.toFixed(2)} 秒`;
-        }
+        if (timeLeft <= 0) { clearInterval(countdownInterval); submitAnswer(null); }
+        else { document.getElementById('countdown').innerText = `倒數：${timeLeft.toFixed(2)} 秒`; }
       }, 100);
 
       clearTimeout(timeout);
@@ -169,39 +192,23 @@
     }
 
     function submitAnswer(answer) {
-      clearTimeout(timeout);
-      clearInterval(countdownInterval);
+      clearTimeout(timeout); clearInterval(countdownInterval);
       answerButtons.classList.add('hidden');
-
-      const elapsed = (Date.now() - startTime)/1000;
+      const elapsed = (Date.now()-startTime)/1000;
       if (answer === correctAnswer) {
         score += 10;
         document.getElementById('feedback').innerText = '答對了！';
       } else {
-        document.getElementById('feedback').innerHTML =
-          `答錯了，正確答案：<br><img src="${correctAnswer}.jpg" alt="正確答案">`;
+        document.getElementById('feedback').innerHTML = `答錯了，正確答案：<br><img src="${correctAnswer}.jpg" alt="正確答案">`;
       }
-
       totalTime += elapsed;
-      document.getElementById('result').innerText =
-        `目前分數：${score} 分\n花費時間：${totalTime.toFixed(2)} 秒`;
-
-      if (currentQuestion >= totalQuestions) {
-        endExam();
-      } else {
-        currentQuestion++;
-        document.getElementById('nextBtn').classList.remove('hidden');
-      }
+      document.getElementById('result').innerText = `目前分數：${score} 分\n花費時間：${totalTime.toFixed(2)} 秒`;
+      if (currentQuestion >= totalQuestions) endExam(); else { currentQuestion++; document.getElementById('nextBtn').classList.remove('hidden'); }
     }
 
     async function endExam() {
       const nickname = document.getElementById('nickname').value.trim() || '無名';
-      await addDoc(collection(db,'leaderboard'), {
-        name: nickname,
-        score,
-        time: totalTime,
-        createdAt: serverTimestamp()
-      });
+      await addDoc(collection(db,'leaderboard'), { name: nickname, score, time: totalTime, createdAt: serverTimestamp() });
       await showLeaderboard();
       document.getElementById('questionInfo').classList.add('hidden');
       document.getElementById('startBtn').classList.remove('hidden');
@@ -210,41 +217,18 @@
 
     async function showLeaderboard() {
       console.log('Fetching leaderboard…');
-      const q = query(
-        collection(db,'leaderboard'),
-        orderBy('score','desc'),
-        orderBy('time','asc'),
-        limit(10)
-      );
+      const q = query(collection(db,'leaderboard'), orderBy('score','desc'), orderBy('time','asc'), limit(10));
       let snapshot;
-      try {
-        snapshot = await getDocs(q);
-      } catch (e) {
-        console.error('Firestore 讀取錯誤：', e);
-        document.getElementById('leaderboard').innerHTML =
-          '<p style="color:red;">無法載入排行榜，請檢查 Console。</p>';
-        return;
-      }
+      try { snapshot = await getDocs(q); } catch(e) { console.error('Firestore 讀取錯誤：', e); document.getElementById('leaderboard').innerHTML = '<p style="color:red;">無法載入排行榜，請檢查 Console。</p>'; return; }
       console.log(`Got ${snapshot.size} entries`);
-      if (snapshot.empty) {
-        document.getElementById('leaderboard').innerHTML =
-          '<p>目前尚無排行榜資料。</p>';
-        return;
-      }
+      if (snapshot.empty) { document.getElementById('leaderboard').innerHTML = '<p>目前尚無排行榜資料。</p>'; return; }
       let html = '<h3>排行榜</h3><ol>';
-      snapshot.forEach(doc => {
-        const e = doc.data();
-        html += `<li>${e.name}：${e.score} 分 (${e.time.toFixed(2)} 秒)</li>`;
-      });
+      snapshot.forEach(doc => { const e = doc.data(); html += `<li>${e.name}：${e.score} 分 (${e.time.toFixed(2)} 秒)</li>`; });
       html += '</ol>';
       document.getElementById('leaderboard').innerHTML = html;
     }
 
-    window.startExam = startExam;
-    window.nextQuestion = nextQuestion;
-    window.submitAnswer = submitAnswer;
-
-    // 頁面載入時先試著顯示一次
+    window.startExam = startExam; window.nextQuestion = nextQuestion; window.submitAnswer = submitAnswer;
     showLeaderboard();
   </script>
 </body>
