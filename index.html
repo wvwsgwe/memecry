@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>聲音考試網站</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    .images {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .images img {
+      width: 100px;
+      cursor: pointer;
+    }
+    .answers button, #nextBtn, #startBtn, select, input[type="text"] {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+    .hidden {
+      display: none;
+    }
+    #countdown {
+      font-size: 18px;
+      font-weight: bold;
+    }
+    #feedback img {
+      width: 100px;
+      margin-top: 10px;
+    }
+    #leaderboard ol {
+      padding-left: 0;
+      list-style-position: inside;
+    }
+  </style>
+</head>
+<body>
+  <h1>聲音考試網站</h1>
+
+  <div>
+    暱稱：<input type="text" id="nickname" placeholder="請輸入暱稱" />
+    <br>
+    題目方式：
+    <select id="randomMode">
+      <option value="norepeat" selected>隨機不重複</option>
+      <option value="repeat">隨機可重複</option>
+    </select>
+    作答時間：
+    <select id="timeLimitSelect">
+      <option value="5" selected>5 秒</option>
+      <option value="10">10 秒</option>
+    </select>
+  </div>
+
+  <div class="images" id="imageContainer"></div>
+  <button id="startBtn" onclick="startExam()">考試</button>
+
+  <div id="questionInfo" class="hidden">
+    <p>第 <span id="questionNum">1</span> 題</p>
+    <p id="countdown">倒數：5.00 秒</p>
+  </div>
+
+  <div class="answers hidden" id="answerButtons"></div>
+  <div id="feedback"></div>
+  <button id="nextBtn" class="hidden" onclick="nextQuestion()">下一題</button>
+
+  <div id="result"></div>
+  <div id="highscore"></div>
+  <div id="fastest"></div>
+  <div id="leaderboard"></div>
+
+  <script>
+    const soundList = Array.from({ length: 10 }, (_, i) => String(i + 1).padStart(3, '0'));
+    let questionsPool = [];
+    let score = 0;
+    let totalTime = 0;
+    let correctAnswer = '';
+    let currentQuestion = 1;
+    const totalQuestions = 10;
+    let startTime;
+    let countdownInterval;
+    let timeout;
+    let timeLimit = 5;
+    let randomMode = 'norepeat';
+
+    const leaderboard = JSON.parse(localStorage.getItem('leaderboard') || '[]');
+
+    const imageContainer = document.getElementById('imageContainer');
+    const answerButtons = document.getElementById('answerButtons');
+
+    soundList.forEach(num => {
+      const img = document.createElement('img');
+      img.src = `${num}.jpg`;
+      img.alt = num;
+      img.onclick = () => playSound(num);
+      imageContainer.appendChild(img);
+
+      const btn = document.createElement('button');
+      btn.textContent = `A${num}`;
+      btn.onclick = () => submitAnswer(num);
+      answerButtons.appendChild(btn);
+
+      const audio = document.createElement('audio');
+      audio.id = num;
+      audio.src = `${num}.mp3`;
+      document.body.appendChild(audio);
+    });
+
+    function playSound(id) {
+      document.getElementById(id).play();
+    }
+
+    function shuffle(arr) {
+      return arr.sort(() => Math.random() - 0.5);
+    }
+
+    function startExam() {
+      const nickname = document.getElementById('nickname').value.trim() || '無名';
+      score = 0;
+      totalTime = 0;
+      currentQuestion = 1;
+      timeLimit = parseInt(document.getElementById('timeLimitSelect').value);
+      randomMode = document.getElementById('randomMode').value;
+      questionsPool = shuffle([...soundList]);
+
+      document.getElementById('startBtn').classList.add('hidden');
+      document.getElementById('result').innerText = '';
+      document.getElementById('feedback').innerHTML = '';
+      document.getElementById('nickname').disabled = true;
+      document.getElementById('randomMode').disabled = true;
+      document.getElementById('timeLimitSelect').disabled = true;
+
+      nextQuestion();
+    }
+
+    function nextQuestion() {
+      document.getElementById('nextBtn').classList.add('hidden');
+      document.querySelector('.answers').classList.remove('hidden');
+      document.getElementById('questionInfo').classList.remove('hidden');
+      document.getElementById('questionNum').innerText = currentQuestion;
+      document.getElementById('feedback').innerHTML = '';
+
+      if (randomMode === 'norepeat') {
+        correctAnswer = questionsPool[currentQuestion - 1];
+      } else {
+        correctAnswer = soundList[Math.floor(Math.random() * soundList.length)];
+      }
+
+      playSound(correctAnswer);
+      startTime = Date.now();
+      let timeLeft = timeLimit;
+      document.getElementById('countdown').innerText = `倒數：${timeLeft.toFixed(2)} 秒`;
+
+      clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        timeLeft -= 0.1;
+        if (timeLeft <= 0) {
+          clearInterval(countdownInterval);
+          submitAnswer(null);
+        } else {
+          document.getElementById('countdown').innerText = `倒數：${timeLeft.toFixed(2)} 秒`;
+        }
+      }, 100);
+
+      clearTimeout(timeout);
+      timeout = setTimeout(() => submitAnswer(null), timeLimit * 1000);
+    }
+
+    function submitAnswer(answer) {
+      clearTimeout(timeout);
+      clearInterval(countdownInterval);
+      document.querySelector('.answers').classList.add('hidden');
+
+      const elapsed = (Date.now() - startTime) / 1000;
+      let isCorrect = answer === correctAnswer;
+
+      if (isCorrect) {
+        score += 10;
+        document.getElementById('feedback').innerText = '答對了！';
+      } else {
+        document.getElementById('feedback').innerHTML = `答錯了，正確答案如下：<br><img src="${correctAnswer}.jpg" alt="正確答案">`;
+      }
+
+      totalTime += elapsed;
+      document.getElementById('result').innerText = `目前分數：${score} 分\n花費時間：${totalTime.toFixed(2)} 秒`;
+
+      if (currentQuestion >= totalQuestions) {
+        endExam();
+      } else {
+        currentQuestion++;
+        document.getElementById('nextBtn').classList.remove('hidden');
+      }
+    }
+
+    function endExam() {
+      const nickname = document.getElementById('nickname').value.trim() || '無名';
+      leaderboard.push({ name: nickname, score, time: totalTime });
+      leaderboard.sort((a, b) => b.score - a.score || a.time - b.time);
+      const top10 = leaderboard.slice(0, 10);
+      localStorage.setItem('leaderboard', JSON.stringify(top10));
+
+      document.getElementById('questionInfo').classList.add('hidden');
+      document.getElementById('startBtn').classList.remove('hidden');
+      document.getElementById('nickname').disabled = false;
+      document.getElementById('randomMode').disabled = false;
+      document.getElementById('timeLimitSelect').disabled = false;
+
+      showLeaderboard();
+    }
+
+    function showLeaderboard() {
+      const data = JSON.parse(localStorage.getItem('leaderboard') || '[]');
+      if (!data.length) return;
+
+      let html = '<h3>排行榜</h3><ol>';
+      data.forEach(entry => {
+        html += `<li>${entry.name}：${entry.score} 分 (${entry.time.toFixed(2)} 秒)</li>`;
+      });
+      html += '</ol>';
+      document.getElementById('leaderboard').innerHTML = html;
+    }
+
+    showLeaderboard();
+  </script>
+</body>
+</html>
